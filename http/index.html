@@ -1,0 +1,97 @@
+<html>
+  <head>
+    <title>P2000 messages</title>
+  </head>
+  
+  <script language="JavaScript" type="text/javascript">
+    document.addEventListener('DOMContentLoaded', function() {
+                                getMessagesAsync();
+                              
+                                // Timer every 30s
+                                setInterval(function() {
+                                              getMessagesAsync();
+                                          }, 30*1000);
+                              }, false);
+    
+    function getMessagesAsync() {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', "/api/messages", true);
+        xhr.responseType = 'json';
+        xhr.onload = function() {
+            var status = xhr.status;
+            if (status === 200) {
+                console.log("RES", xhr.response, typeof xhr.response);
+                
+                document.getElementById('labelMessagesCount').innerHTML = xhr.response.length.toString()
+                clearHtmlTable()
+                buildHtmlTable(xhr.response)
+            } else {
+            }
+        };
+        xhr.send();
+    }
+  
+    function sendRequest(method) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', method, true);
+        xhr.responseType = 'json';
+        xhr.send();
+    }
+  
+    function buildHtmlTable(myList) {
+        var table = document.getElementById("dataTable")
+        var r = new Array(), j = -1;
+        for(var i = 0; i < myList.length; i++ ) {
+            var elem = myList[i];
+            
+            var body_color = "#000000";
+            if (elem['priority'] == 1) {
+                body_color = "#00AA00";
+            }
+            if (elem['priority'] == 2) {
+                body_color = "#0000AA";
+            }
+            if (elem['priority'] == 3) {
+                body_color = "#AA0000";
+            }
+            var html_body = '<font color="' + body_color + '">' + elem['body'] + '</font>';
+
+            var row = table.insertRow();
+            // Cell body
+            var cellGr = row.insertCell();
+            cellGr.style.color = "#000000";
+            cellGr.innerHTML = elem['timestamp'] + "<br/>" + elem['groupid'] + ". " + "To: " + elem['receivers'] + "<br/>" + html_body;
+        }
+    }
+  
+    function clearHtmlTable() {
+        var table = document.getElementById("dataTable")
+        while(table.rows.length > 0) {
+            table.deleteRow(0);
+        }
+    }
+  
+    function reloadHtmlTable() {
+        document.getElementById('labelMessagesCount').innerHTML = "loading..."
+        getMessagesAsync()
+    }
+  
+    function rebootDevice() {
+        sendRequest("/api/reboot")
+    }
+  
+    function poweroffDevice() {
+        sendRequest("/api/poweroff")
+    }
+  </script>
+  
+  <body bgcolor=white>
+      <p>Raspberry Pi P2000 receiver</p>
+      <p>Messages loaded: <label id="labelMessagesCount">-</label></p>
+      <p><a href="javascript:reloadHtmlTable();">Reload</a> <a href="#BTM">To page bottom</a></p>
+      <table border="0" cellpadding="10" id="dataTable">
+      </table>
+      <p id="BTM"><a href="javascript:rebootDevice();">Reset device</a> <a href="javascript:poweroffDevice();">Switch off device</a></p>
+  </body>
+</html>
+

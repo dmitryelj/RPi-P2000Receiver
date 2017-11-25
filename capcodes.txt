@@ -1,0 +1,3 @@
+# This is a data example, user should fill the file
+000100000,Proefalarm Brandweer Regionaal Amsterdam Amstelland
+000100007,Brandweer Amsterdam-Amstelland - Kazerne Aalsmeer (Ploeg 1B)
