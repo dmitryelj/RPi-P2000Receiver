@@ -1,3 +1,6 @@
+# Universal LCD UI Library for Raspberry Pi with Fake class for Windows/OSX debugging
+# dmitryelj@gmail.com
+
 # LCD/FakeLCD Library class.
 
 import os, sys, time
