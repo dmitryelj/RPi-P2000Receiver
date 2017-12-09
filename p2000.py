@@ -372,7 +372,7 @@ def loadCapcodesDict():
         pass
 
 if __name__ == "__main__":
-    print("Raspberry Pi P2000 decoder v0.1b")
+    print("Raspberry Pi P2000 decoder v0.2b")
     print("Run:\npython3 p2000.py lcd=true|false")
     print("")
 
