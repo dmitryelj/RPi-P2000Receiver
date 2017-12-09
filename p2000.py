@@ -29,6 +29,7 @@ gain = 20           # gain, een getal tussen 0-50
 correction = 0      # specifieke ppm-afwijking van RTL-SDR
 messagesLimit = 5000
 no_lcd = False
+debug = False
 
 # Internal server
 PORT_NUMBER = 8000
@@ -330,25 +331,29 @@ class HTTPHandler(BaseHTTPRequestHandler):
         self.wfile.write(responce)
 
 def checkRTLSDR():
+    res = True
     # Helper: check that RTL-SDR software is installed
     process = subprocess.Popen("rtl_fm", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     # Wait for the process to finish
     out, err = process.communicate()
     error_str = err.decode('utf8')
     if "not found" in error_str:
-        print("Error: rtl_fm is not found")
-        return False
+        print("rtl_fm: not found")
+        res = False
+    else:
+        print("rtl_fm: ok")
 
-    process = subprocess.Popen("multimon-ng", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen("multimon-ng -h", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     # Wait for the process to finish
     out, err = process.communicate()
     error_str = err.decode('utf8')
     if "not found" in error_str:
-        print("Error: multimon-ng is not found")
-        return False
+        print("multimon-ng: not found")
+        res = False
+    else:
+        print("multimon-ng: ok")
 
-    return True
-
+    return res
 
 def loadCapcodesDict():
     global capcodesDict
@@ -356,6 +361,7 @@ def loadCapcodesDict():
     try:
         abs_path = os.path.abspath(__file__)
         dir_path = os.path.dirname(abs_path)
+        print("Loading {}".format(dir_path + "/capcodes.txt"))
         with open(dir_path + "/capcodes.txt", "r") as text_file:
             lines = text_file.readlines()
             for s in lines:
@@ -367,23 +373,30 @@ def loadCapcodesDict():
 
 if __name__ == "__main__":
     print("Raspberry Pi P2000 decoder v0.1b")
-    print("Run:\n  python3 p2000.py [lcd=true|false]")
+    print("Run:\npython3 p2000.py lcd=true|false")
     print("")
-    
-    if checkRTLSDR() is False and debug is False:
-        sys.exit(0)
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--lcd", dest="lcd", default="true")
     args = parser.parse_args()
     if args.lcd == 'False' or args.lcd == 'false' or args.lcd == '0':
         no_lcd = True
-    
+
+    print("LCD in use:", "no" if no_lcd else "yes")
+    rtl_found = checkRTLSDR()
+    print("")
+
     loadCapcodesDict()
-    print("capcodesDict", len(capcodesDict.keys()), "records loaded")
+    print(len(capcodesDict.keys()), "records loaded")
+    print("")
 
     # Debug=True - without receiver, for simulation: gcc debugtest.c -odebugtest)
-    debug = utils.isRaspberryPi() is False
+    if utils.isRaspberryPi() is False:
+        debug = True
+
+    if rtl_found is False and debug is False:
+        print("App done, configuration is not complete")
+        sys.exit(0)
 
     # Data receiving thread
     def dataThreadFunc():
@@ -473,7 +486,7 @@ if __name__ == "__main__":
     is_active = True
 
     mainView = UIMainView() if no_lcd is False else UIEmptyView()
-    
+
     dataThread = threading.Thread(target=dataThreadFunc)
     dataThread.start()
 
@@ -483,11 +496,9 @@ if __name__ == "__main__":
 
     # Run UI
     mainView.mainloop()
-    
+
     is_active = False
     httpd.shutdown()
-    # if utils.isRaspberryPi():
-    #     mainView.tft.clear_display(mainView.tft.WHITE)
 
     print("App done")
 
