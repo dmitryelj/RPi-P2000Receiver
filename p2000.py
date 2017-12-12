@@ -15,6 +15,7 @@ import subprocess
 import os
 import threading
 import re
+import fnmatch
 import textwrap
 import json
 import argparse
@@ -45,6 +46,7 @@ PRIORITY3 = 3
 mainView = None
 messages = []
 capcodesDict = dict()
+filtersList = []
 is_active = False
 
 class MessageItem(object):
@@ -195,12 +197,33 @@ class UIMainView(object):
 
 
 # Empty fake view, if UI is disabled
-class UIEmptyView(object):
+class UIConsoleView(object):
     def __init__(self):
         pass
     
     def updateUI(self):
-        pass
+      global messages
+      
+      print("\x1b[2J")  # Clear console
+      max_cnt = 10
+      print("\x1b[0;0H" + '\x1b[1m' + "Last {} messages\n".format(max_cnt) + '\x1b[0m') # Cursor to 0,0
+      for idx, msg in enumerate(messages):
+          # Header and time
+          print('\x1b[1;37m' + "{}".format(msg.timestamp) + '\x1b[0m') # Grey
+          # Group and receivers
+          print("To: {}".format(msg.groupid, msg.receivers))
+          # Body
+          msg_color = '\x1b[1;30m' # Black
+          if msg.priority == PRIORITY1:
+              msg_color = '\x1b[1;32m' # Green
+          elif msg.priority == PRIORITY2:
+              msg_color = '\x1b[1;34m' # Blue
+          elif msg.priority == PRIORITY3:
+              msg_color = '\x1b[1;31m' # Red
+          print(msg_color + msg.body + '\x1b[0m')
+          print("")
+
+          if idx >= max_cnt: break
 
     def mainloop(self):
         while True:
@@ -208,7 +231,6 @@ class UIEmptyView(object):
                 time.sleep(1)
             except KeyboardInterrupt:
                 break
-
 
 # HTTP server.
 class HTTPHandler(BaseHTTPRequestHandler):
@@ -220,10 +242,10 @@ class HTTPHandler(BaseHTTPRequestHandler):
         try:
             # All stuff stored in 'http' subfolder
             file_path = dir_path + "/http" + fileName
-            print("Read %s" % file_path)
+            # print("Read %s" % file_path)
             with open(file_path, 'rb') as datafile:
                 content = datafile.read()
-            print("Done, %sb" % len(content))
+            # print("Done, %sb" % len(content))
         except Exception as e:
             print("do_ReadFile Error: %s" % str(e))
         return content
@@ -355,14 +377,12 @@ def checkRTLSDR():
 
     return res
 
-def loadCapcodesDict():
+def loadCapcodesDict(filename):
     global capcodesDict
     # Load capcodes dictionary: "capcode,description" pairs
     try:
-        abs_path = os.path.abspath(__file__)
-        dir_path = os.path.dirname(abs_path)
-        print("Loading {}".format(dir_path + "/capcodes.txt"))
-        with open(dir_path + "/capcodes.txt", "r") as text_file:
+        print("Loading {}".format(filename))
+        with open(filename, "r") as text_file:
             lines = text_file.readlines()
             for s in lines:
                 fields = s.split(',')
@@ -371,13 +391,37 @@ def loadCapcodesDict():
     except:
         pass
 
+def loadFilter(filterFile):
+    global filtersList
+    filtersList = []
+    try:
+        with open(filterFile, "r") as text_file:
+            lines = text_file.readlines()
+            lines_strip = map((lambda s: s.strip()), lines)
+            filtersList = list(filter(lambda s: len(s) > 0 and s[0:1] != "#" and s[0:1] != ";", lines_strip))
+    except:
+        pass
+
+def checkFilter(capcode):
+    global filtersList
+    # If filter not loaded, disable
+    if len(filtersList) == 0:
+        return True
+
+    # Check if capcode applied to at least one filter
+    for f_str in filtersList:
+        if fnmatch.fnmatch(capcode, f_str):
+            return True
+    return False
+
 if __name__ == "__main__":
-    print("Raspberry Pi P2000 decoder v0.2b")
-    print("Run:\npython3 p2000.py lcd=true|false")
+    print("Raspberry Pi P2000 decoder v0.3b")
+    print("Run:\npython3 p2000.py --lcd=true|false [--filter=filter.txt]")
     print("")
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--lcd", dest="lcd", default="true")
+    parser.add_argument("--filter", dest="filter", default="")
     args = parser.parse_args()
     if args.lcd == 'False' or args.lcd == 'false' or args.lcd == '0':
         no_lcd = True
@@ -386,8 +430,11 @@ if __name__ == "__main__":
     rtl_found = checkRTLSDR()
     print("")
 
-    loadCapcodesDict()
-    print(len(capcodesDict.keys()), "records loaded")
+    loadCapcodesDict("capcodes.txt")
+    loadCapcodesDict("capcodesPrivate.txt")
+    print("Capcodes: {} records loaded".format(len(capcodesDict.keys())))
+    loadFilter(args.filter)
+    print("Filter: {} strings loaded".format(len(filtersList)))
     print("")
 
     # Debug=True - without receiver, for simulation: gcc debugtest.c -odebugtest)
@@ -420,13 +467,18 @@ if __name__ == "__main__":
                 line = multimon_ng.stdout.readline().decode('utf8')
                 multimon_ng.poll()
                 if line.startswith('FLEX'):
-                    print(line.strip())
                     if line.__contains__("ALN"):
                         flex = line[0:5]
                         timestamp = line[6:25]
                         message = line[58:].strip()
                         groupid = line[35:41].strip()
                         capcode = line[43:52].strip()
+                        
+                        # Apply filter
+                        if checkFilter(capcode) is False:
+                            continue
+                        
+                        print(line.strip())
 
                         regex_prio1 = "^A\s?1|\s?A\s?1|PRIO\s?1|^P\s?1"
                         regex_prio2 = "^A\s?2|\s?A\s?2|PRIO\s?2|^P\s?2"
@@ -485,7 +537,7 @@ if __name__ == "__main__":
 
     is_active = True
 
-    mainView = UIMainView() if no_lcd is False else UIEmptyView()
+    mainView = UIMainView() if no_lcd is False else UIConsoleView()
 
     dataThread = threading.Thread(target=dataThreadFunc)
     dataThread.start()

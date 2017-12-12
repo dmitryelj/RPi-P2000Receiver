@@ -1,0 +1,3 @@
+# Filter format: one string per line, * and ? masks are allowed. Message is passed if it match at least one filter. 
+002*
+001180000
