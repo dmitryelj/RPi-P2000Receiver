@@ -10,6 +10,8 @@ P2000 rtl-based receiver for the Raspberry Pi
 
 - Capcodes phonebook (note: user should fill capcodes.txt before using)
 
+- Capcodes optional filter (white list)
+
 - 5000 messages memory (can be increased in settings)
 
 # Screenshots
@@ -17,6 +19,8 @@ P2000 rtl-based receiver for the Raspberry Pi
 ![View](/screenshots/RPi_P2000.jpg)
 
 ![View](/screenshots/RPi_P2000_web.jpg)
+
+![View](/screenshots/ConsoleOutput.jpg)
 
 # Install
 
