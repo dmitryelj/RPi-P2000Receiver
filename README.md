@@ -88,5 +88,5 @@ python3 /home/pi/Documents/RPi-P2000Receiver/p2000.py &
 
 Thats it.
 
-Optional: to post data to 3rd-party severs, "postToServer" method should be uncommented.
+Optional: to post data to 3rd-party server, "postToServer" method should be uncommented in 'p2000.py'.
 
