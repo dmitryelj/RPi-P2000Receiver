@@ -19,6 +19,7 @@ import fnmatch
 import textwrap
 import json
 import argparse
+import requests
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import libTFT
@@ -36,6 +37,9 @@ debug = False
 PORT_NUMBER = 8000
 httpd = None
 
+# Posting to 3rd party server (not implemented, see MessageItem class)
+post_delay_s = 10.0
+
 # Messages priority
 PRIORITY0 = 0
 PRIORITY1 = 1
@@ -52,13 +56,29 @@ is_active = False
 class MessageItem(object):
     def __init__(self):
         self.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.timereceived = time.time()
         self.groupid = ""
         self.receivers = ""
+        self.capcodes = []
         self.body = ""
         self.priority = 0
+        self.is_posted = False
     
     def toJSON(self):
         return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=4)
+
+    def postToServer(self):
+        try:
+            print("POST:", self.toJSON())
+            # r = requests.post("http://mysuperserver.com", data={'body': self.body, 'type': 'message', 'capcodes': self.capcodes, 'timestamp': self.timestamp})
+            # print("POST result:", r.status_code, r.reason)
+            # print("POST text:", r.text)
+            self.is_posted = True
+        except:
+            pass
+
+    def isPosted(self):
+        return self.is_posted
 
 # UI Main view
 class UIMainView(object):
@@ -415,7 +435,7 @@ def checkFilter(capcode):
     return False
 
 if __name__ == "__main__":
-    print("Raspberry Pi P2000 decoder v0.3b")
+    print("Raspberry Pi P2000 decoder v0.31b")
     print("Run:\npython3 p2000.py --lcd=true|false [--filter=filter.txt]")
     print("")
 
@@ -468,11 +488,14 @@ if __name__ == "__main__":
                 multimon_ng.poll()
                 if line.startswith('FLEX'):
                     if line.__contains__("ALN"):
+                        # Message sample:
+                        # FLEX: 2018-07-29 11:43:27 1600/2/K/A 10.120 [001523172] ALN A1 Boerhaavelaan HAARLM : 16172
+                        line_data = line.split(' ')
                         flex = line[0:5]
-                        timestamp = line[6:25]
+                        timestamp = line_data[1] + " " + line_data[2]
                         message = line[58:].strip()
                         groupid = line[35:41].strip()
-                        capcode = line[43:52].strip()
+                        capcode = line_data[5].replace('[', '').replace(']', '') # line[43:52].strip()
                         
                         # Apply filter
                         if checkFilter(capcode) is False:
@@ -493,19 +516,24 @@ if __name__ == "__main__":
                             pr = PRIORITY1
 
                         # print("MSG", groupid, capcode, message)
-                        
+                        # print("DATA", line_data)
+
                         # Get name from capcode, if exist
                         receiver_name = "{} ({})".format(capcodesDict[capcode], capcode) if capcode in capcodesDict else capcode
                         
                         # If the message was already received, only add receivers capcode
                         if len(messages) > 0 and messages[0].body == message:
                             messages[0].receivers += (", " + receiver_name)
+                            messages[0].capcodes.append(capcode)
                         else:
                             msg = MessageItem()
                             msg.groupid = groupid
                             msg.receivers = receiver_name
+                            msg.capcodes = [capcode]
                             msg.body = message
                             msg.priority = pr
+                            msg.timestamp = timestamp
+                            msg.is_posted = False
                             messages.insert(0, msg)
             
                         # Limit the list size
@@ -524,6 +552,25 @@ if __name__ == "__main__":
             os.kill(multimon_ng.pid, 9)
         print("Data thread stopped")
 
+    # Posting data to 3rd party server (opntional, not implemented yet)
+    def postThreadFunc():
+        print("Data post thread started")
+        while True:
+            if is_active is False:
+                break
+
+            try:
+                now = time.time()
+                for msg in messages:
+                    if msg.isPosted() is False and now - msg.timereceived >= post_delay_s:
+                        msg.postToServer()
+            except BaseException as e:
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                print("postThreadFunc error in line: ", exc_type, exc_tb.tb_lineno, str(e))
+
+            time.sleep(1.0)
+        print("Data post thread stopped")
+
     # HTTP server handling thread
     def httpServerFunc():
         global httpd
@@ -541,6 +588,9 @@ if __name__ == "__main__":
 
     dataThread = threading.Thread(target=dataThreadFunc)
     dataThread.start()
+
+    postThread = threading.Thread(target=postThreadFunc)
+    postThread.start()
 
     httpd = HTTPServer(('', PORT_NUMBER), HTTPHandler)
     serverThread = threading.Thread(target=httpServerFunc)

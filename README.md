@@ -68,7 +68,7 @@ sudo make install
 
 3) Install additional libraries:
 
-sudo pip3 install numpy pillow spidev
+sudo pip3 install numpy pillow spidev requests
 
 4) Get app sources:
 
@@ -86,4 +86,5 @@ python3 /home/pi/Documents/RPi-P2000Receiver/p2000.py &
 
 Thats it.
 
+Optional: to post data to 3rd-party severs, "postToServer" method should be uncommented.
 
