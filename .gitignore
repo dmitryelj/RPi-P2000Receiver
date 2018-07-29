@@ -1,3 +1,8 @@
 
 *.pyc
 capcodesPrivate.txt
+.idea/misc.xml
+.idea/modules.xml
+.idea/RPi-P2000Receiver.iml
+.idea/vcs.xml
+.idea/workspace.xml
