@@ -14,6 +14,8 @@ P2000 rtl-based receiver for the Raspberry Pi
 
 - 5000 messages memory (can be increased in settings)
 
+- Data post to 3rd party server (optional)
+
 # Screenshots
 
 ![View](/screenshots/RPi_P2000.jpg)
