@@ -6,7 +6,7 @@
 #
 # Install libraries first:
 # sudo apt-get install python3 python3-pip
-# sudo pip3 install numpy pillow tzlocal spidev RPi.GPIO
+# sudo pip3 install numpy pillow tzlocal spidev RPi.GPIO requests
 # multimon-ng and rtl-sdr libraries also required (see README.md)
 
 import time
@@ -38,13 +38,14 @@ PORT_NUMBER = 8000
 httpd = None
 
 # Posting to 3rd party server (not implemented, see MessageItem class)
-post_delay_s = 10.0
+post_delay_s = 15.0
 
 # Messages priority
 PRIORITY0 = 0
 PRIORITY1 = 1
 PRIORITY2 = 2
 PRIORITY3 = 3
+PRIORITY4 = 4
 
 # Main view and data
 mainView = None
@@ -175,7 +176,7 @@ class UIMainView(object):
                       msg_color = self.tft.GREEN
                   elif message.priority == PRIORITY2:
                       msg_color = self.tft.BLUE
-                  elif message.priority == PRIORITY3:
+                  elif message.priority == PRIORITY3 or message.priority == PRIORITY4:
                       msg_color = self.tft.RED
                   for s in msg_body_lines:
                       if line_index >= self.lines_cnt: break
@@ -238,7 +239,7 @@ class UIConsoleView(object):
               msg_color = '\x1b[1;32m' # Green
           elif msg.priority == PRIORITY2:
               msg_color = '\x1b[1;34m' # Blue
-          elif msg.priority == PRIORITY3:
+          elif msg.priority == PRIORITY3 or msg.priority == PRIORITY4:
               msg_color = '\x1b[1;31m' # Red
           print(msg_color + msg.body + '\x1b[0m')
           print("")
@@ -366,7 +367,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             print("Error: ", exc_tb.tb_lineno, str(e))
-        
+
         self.send_response(responceCode)
         self.send_header("Content-type", responceType)
         self.end_headers()
@@ -493,8 +494,8 @@ if __name__ == "__main__":
                         line_data = line.split(' ')
                         flex = line[0:5]
                         timestamp = line_data[1] + " " + line_data[2]
-                        message = line[58:].strip()
-                        groupid = line[35:41].strip()
+                        message = line[line.find("ALN")+4:].strip()
+                        groupid = line_data[4].strip()
                         capcode = line_data[5].replace('[', '').replace(']', '') # line[43:52].strip()
                         
                         # Apply filter
@@ -505,15 +506,23 @@ if __name__ == "__main__":
 
                         regex_prio1 = "^A\s?1|\s?A\s?1|PRIO\s?1|^P\s?1"
                         regex_prio2 = "^A\s?2|\s?A\s?2|PRIO\s?2|^P\s?2"
-                        regex_prio3 = "^B\s?1|^B\s?2|^B\s?3|PRIO\s?3|^P\s?3|PRIO\s?4|^P\s?4"
-         
+                        regex_prio3 = "^B\s?1|^B\s?2|^B\s?3|PRIO\s?3|^P\s?3"
+                        regex_prio4 = "^PRIO\s?4|^P\s?4"
+                        msg_words = message.split(' ')
+                        msg_start = ""
+                        if len(msg_words) > 0:
+                            msg_start += msg_words[0]
+                        if len(msg_words) > 1:
+                            msg_start += ' ' + msg_words[1]
                         pr = PRIORITY0
-                        if re.search(regex_prio1, message, re.IGNORECASE):
-                            pr = PRIORITY3
-                        elif re.search(regex_prio2, message, re.IGNORECASE):
-                            pr = PRIORITY2
-                        elif re.search(regex_prio3, message, re.IGNORECASE):
+                        if re.search(regex_prio1, msg_start, re.IGNORECASE):
                             pr = PRIORITY1
+                        elif re.search(regex_prio2, msg_start, re.IGNORECASE):
+                            pr = PRIORITY2
+                        elif re.search(regex_prio3, msg_start, re.IGNORECASE):
+                            pr = PRIORITY3
+                        elif re.search(regex_prio4, msg_start, re.IGNORECASE):
+                            pr = PRIORITY4
 
                         # print("MSG", groupid, capcode, message)
                         # print("DATA", line_data)
