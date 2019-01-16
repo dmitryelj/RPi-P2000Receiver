@@ -24,7 +24,7 @@ P2000 rtl-based receiver for the Raspberry Pi
 
 ![View](/screenshots/ConsoleOutput.jpg)
 
-# Install
+# Install (RPi)
 
 1) Install RTL-SDR:
 
@@ -88,5 +88,22 @@ python3 /home/pi/Documents/RPi-P2000Receiver/p2000.py &
 
 Thats it.
 
-Optional: to post data to 3rd-party server, "postToServer" method should be uncommented in 'p2000.py'.
+# Install (Windows)
 
+Download and install Python 3
+
+Install additional components: pip.exe install Pillow tzlocal
+
+Download and install RTL-SDR libraries (rtl-fm is required to be installed)
+
+Clone as zip and extract app sources from this page
+
+Optionally, fill the capcodes list (can be found in internet)
+
+Run the app: C:\Python3\python.exe p2000.py 
+
+# Get/Post support (optional) 
+
+To get messages in a JSON format, http://IP-ADDRESS:8000/api/messages request can be used.
+
+To post data to 3rd-party server, "postToServer" method should be uncommented in 'p2000.py'. 
