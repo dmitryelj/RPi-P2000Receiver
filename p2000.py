@@ -436,12 +436,15 @@ def checkFilter(capcode):
     return False
 
 if __name__ == "__main__":
-    print("Raspberry Pi P2000 decoder v0.31b")
+    print("P2000 decoder v0.32b by Dmitrii Eliseev\n")
     print("Run:\npython3 p2000.py --lcd=true|false [--filter=filter.txt]")
+    print("")
+    print("Server running: http://{}:{}".format(utils.getIPAddress(), PORT_NUMBER))
+    print("API (GET): http://{}:{}/api/messages".format(utils.getIPAddress(), PORT_NUMBER))
     print("")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--lcd", dest="lcd", default="true")
+    parser.add_argument("--lcd", dest="lcd", default="false")
     parser.add_argument("--filter", dest="filter", default="")
     args = parser.parse_args()
     if args.lcd == 'False' or args.lcd == 'false' or args.lcd == '0':
@@ -459,8 +462,8 @@ if __name__ == "__main__":
     print("")
 
     # Debug=True - without receiver, for simulation: gcc debugtest.c -odebugtest)
-    if utils.isRaspberryPi() is False:
-        debug = True
+    # if utils.isRaspberryPi() is False:
+    #    debug = True
 
     if rtl_found is False and debug is False:
         print("App done, configuration is not complete")
@@ -469,8 +472,12 @@ if __name__ == "__main__":
     # Data receiving thread
     def dataThreadFunc():
         global is_active, mainView, frequency, messages, capcodesDict, debug
-      
+
         cmd = "rtl_fm -f {} -M fm -s 22050 -g {} -p {} | multimon-ng -a FLEX -t raw -".format(frequency, gain, correction)
+        if os.name == 'nt':
+            abs_path = os.path.abspath(__file__)
+            dir_path = os.path.dirname(abs_path)
+            cmd = dir_path + "\\win32\\flex-ng.exe"
         print("Run process", cmd)
         if debug:
             abs_path = os.path.abspath(__file__)
