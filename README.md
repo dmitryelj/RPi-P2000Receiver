@@ -92,7 +92,7 @@ Thats it.
 
 Download and install Python 3
 
-Install additional components: pip.exe install Pillow tzlocal
+Install additional components: pip.exe install Pillow tzlocal requests numpy
 
 Download and install RTL-SDR libraries (rtl-fm is required to be installed)
 
