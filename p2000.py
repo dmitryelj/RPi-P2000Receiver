@@ -22,6 +22,7 @@ import argparse
 import requests
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from websocket_server import WebsocketServer
 import libTFT
 import utils
 
@@ -36,6 +37,9 @@ debug = False
 # Internal server
 PORT_NUMBER = 8000
 httpd = None
+# Websocket server
+PORT_NUMBER_WS = 8001
+websocket = None
 
 # Posting to 3rd party server (not implemented, see MessageItem class)
 post_delay_s = 15.0
@@ -223,28 +227,29 @@ class UIConsoleView(object):
         pass
     
     def updateUI(self):
-      global messages
-      
-      print("\x1b[2J")  # Clear console
-      max_cnt = 10
-      print("\x1b[0;0H" + '\x1b[1m' + "Last {} messages\n".format(max_cnt) + '\x1b[0m') # Cursor to 0,0
-      for idx, msg in enumerate(messages):
-          # Header and time
-          print('\x1b[1;37m' + "{}".format(msg.timestamp) + '\x1b[0m') # Grey
-          # Group and receivers
-          print("To: {}".format(msg.groupid, msg.receivers))
-          # Body
-          msg_color = '\x1b[1;30m' # Black
-          if msg.priority == PRIORITY1:
-              msg_color = '\x1b[1;32m' # Green
-          elif msg.priority == PRIORITY2:
-              msg_color = '\x1b[1;34m' # Blue
-          elif msg.priority == PRIORITY3 or msg.priority == PRIORITY4:
-              msg_color = '\x1b[1;31m' # Red
-          print(msg_color + msg.body + '\x1b[0m')
-          print("")
+        pass
 
-          if idx >= max_cnt: break
+        # global messages
+        # print("\x1b[2J")  # Clear console
+        # max_cnt = 10
+        # print("\x1b[0;0H" + '\x1b[1m' + "Last {} messages\n".format(max_cnt) + '\x1b[0m') # Cursor to 0,0
+        # for idx, msg in enumerate(messages):
+        #     # Header and time
+        #     print('\x1b[1;37m' + "{}".format(msg.timestamp) + '\x1b[0m') # Grey
+        #     # Group and receivers
+        #     print("To: {}".format(msg.groupid, msg.receivers))
+        #     # Body
+        #     msg_color = '\x1b[1;30m' # Black
+        #     if msg.priority == PRIORITY1:
+        #         msg_color = '\x1b[1;32m' # Green
+        #     elif msg.priority == PRIORITY2:
+        #         msg_color = '\x1b[1;34m' # Blue
+        #     elif msg.priority == PRIORITY3 or msg.priority == PRIORITY4:
+        #         msg_color = '\x1b[1;31m' # Red
+        #     print(msg_color + msg.body + '\x1b[0m')
+        #     print("")
+        #
+        #     if idx >= max_cnt: break
 
     def mainloop(self):
         while True:
@@ -380,21 +385,23 @@ def checkRTLSDR():
     # Wait for the process to finish
     out, err = process.communicate()
     error_str = err.decode('utf8')
-    if "not found" in error_str:
-        print("rtl_fm: not found")
+    if "not found" in error_str or "not recognized" in error_str:
+        print("rtl_fm: not found, please install RTL-SDR software")
         res = False
     else:
         print("rtl_fm: ok")
 
-    process = subprocess.Popen("multimon-ng -h", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    # Wait for the process to finish
-    out, err = process.communicate()
-    error_str = err.decode('utf8')
-    if "not found" in error_str:
-        print("multimon-ng: not found")
-        res = False
-    else:
-        print("multimon-ng: ok")
+    # Linux only: check that multimon-ng is installed
+    if os.name != 'nt':
+        process = subprocess.Popen("multimon-ng -h", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # Wait for the process to finish
+        out, err = process.communicate()
+        error_str = err.decode('utf8')
+        if "not found" in error_str:
+            print("multimon-ng: not found")
+            res = False
+        else:
+            print("multimon-ng: ok")
 
     return res
 
@@ -436,37 +443,51 @@ def checkFilter(capcode):
     return False
 
 if __name__ == "__main__":
-    print("P2000 decoder v0.32b by Dmitrii Eliseev\n")
-    print("Run:\npython3 p2000.py --lcd=true|false [--filter=filter.txt]")
+    print("")
+    print("P2000 decoder v0.33 by Dmitrii Eliseev\n")
+    print("Run:\npython3 p2000.py --lcd=true|false [--filter=filter.txt] [--capcodes=capcodes.txt]")
     print("")
     print("Server running: http://{}:{}".format(utils.getIPAddress(), PORT_NUMBER))
     print("API (GET): http://{}:{}/api/messages".format(utils.getIPAddress(), PORT_NUMBER))
+    print("Websocket: ws://{}:{}".format(utils.getIPAddress(), PORT_NUMBER_WS))
     print("")
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--lcd", dest="lcd", default="false")
     parser.add_argument("--filter", dest="filter", default="")
+    parser.add_argument("--capcodes", dest="capcodes", default="")
     args = parser.parse_args()
+
+    # Check LCD connection
     if args.lcd == 'False' or args.lcd == 'false' or args.lcd == '0':
         no_lcd = True
-
     print("LCD in use:", "no" if no_lcd else "yes")
+    # Check RTLSDR connection
     rtl_found = checkRTLSDR()
     print("")
 
-    loadCapcodesDict("capcodes.txt")
-    loadCapcodesDict("capcodesPrivate.txt")
+    # Load capcodes file
+    capcodes_path = args.capcodes
+    if capcodes_path == "":
+        abs_path = os.path.abspath(__file__)
+        dir_path = os.path.dirname(abs_path)
+        capcodes_path = dir_path + os.sep + "capcodes.txt"
+    loadCapcodesDict(capcodes_path)
     print("Capcodes: {} records loaded".format(len(capcodesDict.keys())))
-    loadFilter(args.filter)
+
+    # Load filter file
+    filter_path = args.filter
+    if len(filter_path) > 0:
+        loadFilter(filter_path)
     print("Filter: {} strings loaded".format(len(filtersList)))
     print("")
 
     # Debug=True - without receiver, for simulation: gcc debugtest.c -odebugtest)
     # if utils.isRaspberryPi() is False:
-    #    debug = True
+    debug = False
 
     if rtl_found is False and debug is False:
-        print("App done, configuration is not complete")
+        print("App finished, configuration is not complete")
         sys.exit(0)
 
     # Data receiving thread
@@ -568,24 +589,6 @@ if __name__ == "__main__":
             os.kill(multimon_ng.pid, 9)
         print("Data thread stopped")
 
-    # Posting data to 3rd party server (opntional, not implemented yet)
-    def postThreadFunc():
-        print("Data post thread started")
-        while True:
-            if is_active is False:
-                break
-
-            try:
-                now = time.time()
-                for msg in messages:
-                    if msg.isPosted() is False and now - msg.timereceived >= post_delay_s:
-                        msg.postToServer()
-            except BaseException as e:
-                exc_type, exc_obj, exc_tb = sys.exc_info()
-                print("postThreadFunc error in line: ", exc_type, exc_tb.tb_lineno, str(e))
-
-            time.sleep(1.0)
-        print("Data post thread stopped")
 
     # HTTP server handling thread
     def httpServerFunc():
@@ -598,6 +601,47 @@ if __name__ == "__main__":
         httpd.server_close()
         print("Http server stopped")
 
+    # Websocket server
+    def websocketThreadFunc():
+        global websocket
+
+        def on_connected(client, server):
+            print("Websocket: client-%d connected" % client['id'])
+
+        def on_disconnected(client, server):
+            print("Websocket: client-%d disconnected" % client['id'])
+
+        def on_message_received(client, server, message):
+            print("Websocket: client-%d sent message: %s" % (client['id'], message))
+
+        print("Websocket thread started")
+        websocket.set_fn_new_client(on_connected)
+        websocket.set_fn_client_left(on_disconnected)
+        websocket.set_fn_message_received(on_message_received)
+        websocket.run_forever()
+
+    # Posting data to 3rd party server (optional) and to the websocket server
+    def postThreadFunc():
+        global websocket
+
+        print("Data post thread started")
+        while True:
+            if is_active is False:
+                break
+
+            try:
+                now = time.time()
+                for msg in messages:
+                    if msg.isPosted() is False and now - msg.timereceived >= post_delay_s:
+                        msg.postToServer()
+                        websocket.send_message_to_all(msg.toJSON())
+            except BaseException as e:
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                print("postThreadFunc error in line: ", exc_type, exc_tb.tb_lineno, str(e))
+
+            time.sleep(1.0)
+        print("Data post thread stopped")
+
     is_active = True
 
     mainView = UIMainView() if no_lcd is False else UIConsoleView()
@@ -605,18 +649,23 @@ if __name__ == "__main__":
     dataThread = threading.Thread(target=dataThreadFunc)
     dataThread.start()
 
-    postThread = threading.Thread(target=postThreadFunc)
-    postThread.start()
+    websocket = WebsocketServer(PORT_NUMBER_WS, host="0.0.0.0")
+    weThread = threading.Thread(target=websocketThreadFunc)
+    weThread.start()
 
     httpd = HTTPServer(('', PORT_NUMBER), HTTPHandler)
     serverThread = threading.Thread(target=httpServerFunc)
     serverThread.start()
+
+    postThread = threading.Thread(target=postThreadFunc)
+    postThread.start()
 
     # Run UI
     mainView.mainloop()
 
     is_active = False
     httpd.shutdown()
+    websocket.shutdown()
 
     print("App done")
 

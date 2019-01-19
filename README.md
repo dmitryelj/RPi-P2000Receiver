@@ -4,9 +4,7 @@ P2000 rtl-based receiver for the Raspberry Pi
 
 - Standalone P2000 messages receiving (RTL-SDR compatible receiver required)
 
-- Work with or without LCD
-
-- HTTP-server with browser access from any home device
+- Show messages on LCD or via webbrowser interface from any home device
 
 - Capcodes phonebook (note: user should fill capcodes.txt before using)
 
@@ -15,6 +13,8 @@ P2000 rtl-based receiver for the Raspberry Pi
 - 5000 messages memory (can be increased in settings)
 
 - Data post to 3rd party server (optional)
+
+- Websockets support
 
 # Screenshots
 
@@ -106,4 +106,6 @@ Run the app: C:\Python3\python.exe p2000.py
 
 To get messages in a JSON format, http://IP-ADDRESS:8000/api/messages request can be used.
 
-To post data to 3rd-party server, "postToServer" method should be uncommented in 'p2000.py'. 
+To get messages via websocket, use ws://IP-ADDRESS:8001 (see index.html for details).
+
+To post data to a 3rd-party server, "postToServer" method should be uncommented in 'p2000.py'. 
