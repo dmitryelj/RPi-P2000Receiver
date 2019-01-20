@@ -5,13 +5,52 @@
 
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
+        <style>
+            input[type=checkbox] {
+                vertical-align: middle;
+                position: relative;
+                bottom: 1px;
+            }
+        </style>
+
         <script>
             var ws = undefined;
             var messages = [];
+            var show_pr0 = true, show_pr1 = true, show_pr2 = true, show_pr3 = true, show_pr4 = true;
 
-            function onPageLoaded(){
+            function onPageLoaded() {
                 getMessagesAsync();
                 initWebsocketListener();
+            }
+
+            function onCheckBox0Click() {
+                show_pr0 = document.getElementById('check-prio0').checked;
+                clearHtmlTable();
+                buildHtmlTable(messages);
+            }
+
+            function onCheckBox1Click() {
+                show_pr1 = document.getElementById('check-prio1').checked;
+                clearHtmlTable();
+                buildHtmlTable(messages);
+            }
+
+            function onCheckBox2Click() {
+                show_pr2 = document.getElementById('check-prio2').checked;
+                clearHtmlTable();
+                buildHtmlTable(messages);
+            }
+
+            function onCheckBox3Click() {
+                show_pr3 = document.getElementById('check-prio3').checked;
+                clearHtmlTable();
+                buildHtmlTable(messages);
+            }
+
+            function onCheckBox4Click() {
+                show_pr4 = document.getElementById('check-prio4').checked;
+                clearHtmlTable();
+                buildHtmlTable(messages);
             }
 
             function getMessagesAsync() {
@@ -24,9 +63,7 @@
                         console.log("RES", xhr.response, typeof xhr.response);
 
                         messages = xhr.response;
-
-                        document.getElementById('labelMessagesCount').innerHTML = xhr.response.length.toString()
-                        buildHtmlTable(xhr.response)
+                        buildHtmlTable(messages)
                     } else {
                     }
                 };
@@ -50,13 +87,14 @@
                             break;
                     }
                     if (found == false) {
-                        var count = addElement(data, 0);
-                        document.getElementById('labelMessagesCount').innerHTML = count.toString();
-
                         messages.unshift(data);
-                        if (messages.length > 100) {
-                            messages = messages.slice(0, 100);
+                        if (messages.length > 5000) {
+                            messages = messages.slice(0, 5000);
                         }
+
+                        var count = addElement(data, 0);
+                        document.getElementById('labelMessagesDisplayed').innerHTML = count.toString();
+                        document.getElementById('labelMessagesCount').innerHTML = messages.length.toString();
                     }
                 }
             }
@@ -71,6 +109,24 @@
             function addElement(elem, index) {
                 var table = document.getElementById("dataTable")
 
+                // Priority filter
+                if (elem['priority'] == 0 && show_pr0 == false) {
+                    return table.rows.length;
+                }
+                if (elem['priority'] == 1 && show_pr1 == false) {
+                    return table.rows.length;
+                }
+                if (elem['priority'] == 2 && show_pr2 == false) {
+                    return table.rows.length;
+                }
+                if (elem['priority'] == 3 && show_pr3 == false) {
+                    return table.rows.length;
+                }
+                if (elem['priority'] == 4 && show_pr4 == false) {
+                    return table.rows.length;
+                }
+
+                // Add element
                 var body_color = "#000000";
                 if (elem['priority'] == 1) {
                     body_color = "#00AA00";
@@ -97,8 +153,22 @@
                 for(var i = 0; i < myList.length; i++ ) {
                     var elem = myList[i];
 
-                    addElement(elem, i);
+                    addElement(elem, -1);
                 }
+                document.getElementById('labelMessagesDisplayed').innerHTML = table.rows.length.toString();
+                document.getElementById('labelMessagesCount').innerHTML = myList.length.toString();
+            }
+
+            function clearHtmlTable() {
+                var table = document.getElementById("dataTable")
+                while(table.rows.length > 0) {
+                    table.deleteRow(0);
+                }
+            }
+
+            function reloadHtmlTable() {
+                document.getElementById('labelMessagesCount').innerHTML = "loading..."
+                getMessagesAsync()
             }
 
             function rebootDevice() {
@@ -114,8 +184,16 @@
 
     <body bgcolor=white onload="onPageLoaded()">
         <p>P2000 FLEX messages receiver</p>
-        <p>Messages loaded: <label id="labelMessagesCount">-</label></p>
         <p><a href="javascript:window.location.reload(false);">Reload</a> <a href="#BTM">To page bottom</a></p>
+        <p>Messages loaded: <label id="labelMessagesCount">-</label>, displayed: <label id="labelMessagesDisplayed">-</label></p>
+
+        <p>Messages filter:<br/>
+        <label>Priority-0: <input type="checkbox" id="check-prio0" checked onclick="onCheckBox0Click();"/></label>&nbsp;&nbsp;
+        <label style="color: #00AA00">Priority-1: <input type="checkbox" id="check-prio1" checked onclick="onCheckBox1Click();"/></label>&nbsp;&nbsp;
+        <label style="color: #0000AA">Priority-2: <input type="checkbox" id="check-prio2" checked onclick="onCheckBox2Click();"/></label>&nbsp;&nbsp;
+        <label style="color: #AA0000">Priority-3: <input type="checkbox" id="check-prio3" checked onclick="onCheckBox3Click();"/></label>&nbsp;&nbsp;
+        <label style="color: #AA0000">Priority-4: <input type="checkbox" id="check-prio4" checked onclick="onCheckBox4Click();"/></label></p>
+
         <table border="0" cellpadding="10" id="dataTable">
         </table>
         <p id="BTM"><a href="javascript:rebootDevice();">Reset device</a> <a href="javascript:poweroffDevice();">Switch off device</a></p>
