@@ -1,10 +1,12 @@
-P2000 rtl-based receiver for the Raspberry Pi
+P2000 rtl-sdr based messages receiver.
 
 # Features
 
 - Standalone P2000 messages receiving (RTL-SDR compatible receiver required)
 
-- Show messages on LCD or via webbrowser interface from any home device
+- Cross-platform (can work on Windows, Linux and Mac)
+
+- Show messages on LCD or via web browser interface from any home device
 
 - Capcodes phonebook (note: user should fill capcodes.txt before using)
 
