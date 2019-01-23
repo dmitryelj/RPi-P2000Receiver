@@ -2,6 +2,10 @@
 <html>
     <head>
         <title>P2000 messages</title>
+        
+        <link rel="stylesheet" href="/pure-css/pure-min.css" integrity="sha384-nn4HPE8lTHyVtfCBi5yW9d20FjT8BJwUXyWZT9InLYax14RDjBj46LmSztkmNP9w" crossorigin="anonymous">
+        <link rel="stylesheet" href="/icons/css/all.css">
+        <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.6.3/css/all.css" integrity="sha384-UHRtZLI+pbxtHCWp1t77Bi1L4ZtiqrqD80Kn4Z8NTSRyMA2Fd33n5dQ8lWUE00s/" crossorigin="anonymous">
 
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -11,11 +15,17 @@
                 position: relative;
                 bottom: 1px;
             }
+        
+            .content {
+                max-width: 700px;
+                margin: auto;
+            }
         </style>
 
         <script>
             var ws = undefined;
             var messages = [];
+            var filter = "";
             var show_pr0 = true, show_pr1 = true, show_pr2 = true, show_pr3 = true, show_pr4 = true;
 
             function onPageLoaded() {
@@ -43,12 +53,21 @@
 
             function onCheckBox3Click() {
                 show_pr3 = document.getElementById('check-prio3').checked;
+                show_pr4 = show_pr3;
+                clearHtmlTable();
+                buildHtmlTable(messages);
+            }
+        
+            function onFilterApply() {
+                var btn = document.getElementById('filter-txt');
+                console.log("Filter:", btn.value);
+                filter = btn.value;
                 clearHtmlTable();
                 buildHtmlTable(messages);
             }
 
-            function onCheckBox4Click() {
-                show_pr4 = document.getElementById('check-prio4').checked;
+            function onFilterClean() {
+                filter = "";
                 clearHtmlTable();
                 buildHtmlTable(messages);
             }
@@ -105,6 +124,16 @@
                 xhr.responseType = 'json';
                 xhr.send();
             }
+        
+            function iconForSender(sender) {
+                if (sender == 1)
+                    return "<i class=\"fas fa-fire-extinguisher\"></i>";
+                if (sender == 2)
+                    return "<i class=\"fas fa-taxi\"></i>";
+                if (sender == 3)
+                    return "<i class=\"fas fa-ambulance\"></i>";
+                return "<i class=\"fas fa-question\"></i>";
+            }
 
             function addElement(elem, index) {
                 var table = document.getElementById("dataTable")
@@ -125,6 +154,10 @@
                 if (elem['priority'] == 4 && show_pr4 == false) {
                     return table.rows.length;
                 }
+                // Text filter
+                if (filter.length > 0 && elem['body'].toLowerCase().includes(filter.toLowerCase()) == false && elem['receivers'].toLowerCase().includes(filter.toLowerCase()) == false) {
+                    return table.rows.length;
+                }
 
                 // Add element
                 var body_color = "#000000";
@@ -140,10 +173,12 @@
                 var html_body = '<font color="' + body_color + '">' + elem['body'] + '</font>';
 
                 var row = table.insertRow(index);
+                if (table.rows.length % 2 == 0)
+                    row.className = "pure-table-odd";
                 // Cell body
                 var cellGr = row.insertCell();
                 cellGr.style.color = "#000000";
-                cellGr.innerHTML = elem['timestamp'] + "<br/>" + elem['groupid'] + ". " + "To: " + elem['receivers'] + "<br/>" + html_body;
+                cellGr.innerHTML = iconForSender(elem['sender']) + " " + elem['timestamp'] + "<br/>" + elem['groupid'] + ". " + "To: " + elem['receivers'] + "<br/>" + html_body;
 
                 return table.rows.length;
             }
@@ -183,20 +218,26 @@
 
 
     <body bgcolor=white onload="onPageLoaded()">
+        <div class="content">
         <p>P2000 FLEX messages receiver</p>
         <p><a href="javascript:window.location.reload(false);">Reload</a> <a href="#BTM">To page bottom</a></p>
         <p>Messages loaded: <label id="labelMessagesCount">-</label>, displayed: <label id="labelMessagesDisplayed">-</label></p>
 
-        <p>Messages filter:<br/>
-        <label>Priority-0: <input type="checkbox" id="check-prio0" checked onclick="onCheckBox0Click();"/></label>&nbsp;&nbsp;
-        <label style="color: #00AA00">Priority-1: <input type="checkbox" id="check-prio1" checked onclick="onCheckBox1Click();"/></label>&nbsp;&nbsp;
-        <label style="color: #0000AA">Priority-2: <input type="checkbox" id="check-prio2" checked onclick="onCheckBox2Click();"/></label>&nbsp;&nbsp;
-        <label style="color: #AA0000">Priority-3: <input type="checkbox" id="check-prio3" checked onclick="onCheckBox3Click();"/></label>&nbsp;&nbsp;
-        <label style="color: #AA0000">Priority-4: <input type="checkbox" id="check-prio4" checked onclick="onCheckBox4Click();"/></label></p>
+        <form class="pure-form">
+            <p>Priority filter:<br/><br/>
+            <label>Priority-0: <input type="checkbox" id="check-prio0" checked onclick="onCheckBox0Click();" /></label>&nbsp;&nbsp;
+            <label style="color: #00AA00">Priority-1: <input type="checkbox" id="check-prio1" checked onclick="onCheckBox1Click();" /></label>&nbsp;&nbsp;
+            <label style="color: #0000AA">Priority-2: <input type="checkbox" id="check-prio2" checked onclick="onCheckBox2Click();" /></label>&nbsp;&nbsp;
+            <label style="color: #AA0000">Priority-3: <input type="checkbox" id="check-prio3" checked onclick="onCheckBox3Click();" /></label></p>
+            
+            <p>Text filter:<br/>
+            <input type="text" id="filter-txt" name="filter"/> <a onclick="onFilterApply()" class="pure-button" href="#">Apply</a> <a onclick="onFilterClean()" class="pure-button" href="#">Reset</a></p>
+        </form>
 
-        <table border="0" cellpadding="10" id="dataTable">
+        <table border="0" cellpadding="10" id="dataTable" class="pure-table" width="95%">
         </table>
         <p id="BTM"><a href="javascript:rebootDevice();">Reset device</a> <a href="javascript:poweroffDevice();">Switch off device</a></p>
+        </div>
     </body>
 </html>
 
