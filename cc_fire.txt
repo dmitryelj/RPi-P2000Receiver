@@ -1,0 +1,3 @@
+# This file contains capcodes that will be displayed with "fire" icon. Data was obtained from open sources, accuracy is not guaranteed.
+001403884, 001403003, 000903593, 000903576, 000903100, 001400231
+000108999, 000107186, 000107181, 000107111

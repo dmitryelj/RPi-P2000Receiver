@@ -51,6 +51,13 @@ PRIORITY2 = 2
 PRIORITY3 = 3
 PRIORITY4 = 4
 
+# Sender type
+SENDER_UNKNOWN = 0
+SENDER_BRAND = 1
+SENDER_POLICE = 2
+SENDER_AMBU = 3
+SENDER_TEST = 16
+
 # Main view and data
 mainView = None
 messages = []
@@ -58,7 +65,14 @@ capcodesDict = dict()
 filtersList = []
 is_active = False
 
+# Capcodes classification
+capcodes_police = set()
+capcodes_fire = set()
+capcodes_ambu = set()
+
+
 class MessageItem(object):
+    __slots__ = ['timestamp', 'timereceived', 'groupid', 'receivers', 'capcodes', 'body', 'priority', 'sender', 'is_posted']
     def __init__(self):
         self.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.timereceived = time.time()
@@ -67,10 +81,20 @@ class MessageItem(object):
         self.capcodes = []
         self.body = ""
         self.priority = 0
+        self.sender = 0;
         self.is_posted = False
     
     def toJSON(self):
-        return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=4)
+        data = {"timestamp": self.timestamp,
+                "timereceived": self.timereceived,
+                "groupid": self.groupid,
+                "receivers": self.receivers,
+                "capcodes": self.capcodes,
+                "body": self.body,
+                "priority": self.priority,
+                "sender": self.sender,
+                "is_posted": self.is_posted}
+        return json.dumps(data, default=lambda o: o.__dict__, sort_keys=True, indent=4)
 
     def postToServer(self):
         try:
@@ -406,18 +430,40 @@ def checkRTLSDR():
     return res
 
 def loadCapcodesDict(filename):
-    global capcodesDict
     # Load capcodes dictionary: "capcode,description" pairs
+    capcodes = dict()
     try:
         print("Loading {}".format(filename))
         with open(filename, "r") as text_file:
             lines = text_file.readlines()
             for s in lines:
+                if s[0] == '#':
+                    continue
+
                 fields = s.split(',')
                 if len(fields) == 2:
-                    capcodesDict[fields[0]] = fields[1].strip()
+                    capcodes[fields[0].strip()] = fields[1].strip()
     except:
         pass
+    return capcodes
+
+def loadCapcodesSet(filename):
+    # Load capcodes list from a raw text file: 00001, 00002, ...
+    capcodes = set()
+    try:
+        print("Loading capcodes for classifier {}".format(filename))
+        with open(filename, "r") as text_file:
+            lines = text_file.readlines()
+            for s in lines:
+                if s[0] == '#':
+                    continue
+                
+                fields = s.strip().split(', ')
+                capcodes.update(fields)
+    except:
+          pass
+    print("  {} loaded".format(len(capcodes)))
+    return capcodes
 
 def loadFilter(filterFile):
     global filtersList
@@ -441,6 +487,21 @@ def checkFilter(capcode):
         if fnmatch.fnmatch(capcode, f_str):
             return True
     return False
+
+def getSender(capcode, message):
+    global capcodes_police, capcodes_fire, capcodes_ambu
+    # Check from capcodes list
+    if capcode in capcodes_police:
+        return SENDER_POLICE
+    if capcode in capcodes_fire:
+        return SENDER_BRAND
+    if capcode in capcodes_ambu:
+        return SENDER_AMBU
+
+    # Try to analyse the text
+
+
+    return SENDER_UNKNOWN
 
 if __name__ == "__main__":
     print("")
@@ -468,11 +529,11 @@ if __name__ == "__main__":
 
     # Load capcodes file
     capcodes_path = args.capcodes
+    abs_path = os.path.abspath(__file__)
+    dir_path = os.path.dirname(abs_path)
     if capcodes_path == "":
-        abs_path = os.path.abspath(__file__)
-        dir_path = os.path.dirname(abs_path)
         capcodes_path = dir_path + os.sep + "capcodes.txt"
-    loadCapcodesDict(capcodes_path)
+    capcodesDict = loadCapcodesDict(capcodes_path)
     print("Capcodes: {} records loaded".format(len(capcodesDict.keys())))
 
     # Load filter file
@@ -481,6 +542,11 @@ if __name__ == "__main__":
         loadFilter(filter_path)
     print("Filter: {} strings loaded".format(len(filtersList)))
     print("")
+
+    # Load capcodes classifier
+    capcodes_police = loadCapcodesSet(dir_path + os.sep + "cc_police.txt")
+    capcodes_fire = loadCapcodesSet(dir_path + os.sep + "cc_fire.txt")
+    capcodes_ambu = loadCapcodesSet(dir_path + os.sep + "cc_ambu.txt")
 
     # Debug=True - without receiver, for simulation: gcc debugtest.c -odebugtest)
     # if utils.isRaspberryPi() is False:
@@ -495,14 +561,12 @@ if __name__ == "__main__":
         global is_active, mainView, frequency, messages, capcodesDict, debug
 
         cmd = "rtl_fm -f {} -M fm -s 22050 -g {} -p {} | multimon-ng -a FLEX -t raw -".format(frequency, gain, correction)
+        abs_path = os.path.abspath(__file__)
+        dir_path = os.path.dirname(abs_path)
         if os.name == 'nt':
-            abs_path = os.path.abspath(__file__)
-            dir_path = os.path.dirname(abs_path)
-            cmd = dir_path + "\\win32\\flex-ng.exe"
+            cmd = dir_path + "\\win32\\flex-ng.exe -f {} -g {} -p {}".format(frequency, gain, correction)
         print("Run process", cmd)
         if debug:
-            abs_path = os.path.abspath(__file__)
-            dir_path = os.path.dirname(abs_path)
             cmd = dir_path + "/./debugtest"
             print("Debug process", cmd)
         
@@ -562,12 +626,15 @@ if __name__ == "__main__":
                         if len(messages) > 0 and messages[0].body == message:
                             messages[0].receivers += (", " + receiver_name)
                             messages[0].capcodes.append(capcode)
+                            if messages[0].sender == SENDER_UNKNOWN:
+                                messages[0].sender = getSender(capcode, message)
                         else:
                             msg = MessageItem()
                             msg.groupid = groupid
                             msg.receivers = receiver_name
                             msg.capcodes = [capcode]
                             msg.body = message
+                            msg.sender = getSender(capcode, message)
                             msg.priority = pr
                             msg.timestamp = timestamp
                             msg.is_posted = False

@@ -1,0 +1,2 @@
+# This file contains capcodes that will be displayed with "police" icon. Data was obtained from open sources, accuracy is not guaranteed.
+001230999, 001230200, 000736900, 000736094 
