@@ -99,7 +99,7 @@ class MessageItem(object):
     def postToServer(self):
         try:
             print("POST:", self.toJSON())
-            # r = requests.post("http://mysuperserver.com", data={'body': self.body, 'type': 'message', 'capcodes': self.capcodes, 'timestamp': self.timestamp})
+            # r = requests.post("http://mysuperserver.com", data=dict(payload=self.toJSON()))
             # print("POST result:", r.status_code, r.reason)
             # print("POST text:", r.text)
             self.is_posted = True
