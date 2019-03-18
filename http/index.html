@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <title>P2000 messages</title>
+        <title>P2000/POCSAG messages</title>
         
         <link rel="stylesheet" href="/pure-css/pure-min.css" integrity="sha384-nn4HPE8lTHyVtfCBi5yW9d20FjT8BJwUXyWZT9InLYax14RDjBj46LmSztkmNP9w" crossorigin="anonymous">
         <link rel="stylesheet" href="/icons/css/all.css">
@@ -27,49 +27,75 @@
             var messages = [];
             var filter = "";
             var show_pr0 = true, show_pr1 = true, show_pr2 = true, show_pr3 = true, show_pr4 = true;
+            var show_police = true, show_ambulance = true, show_fire = true, show_other = true;
+            var max_messages = 5000;
 
             function onPageLoaded() {
                 getMessagesAsync();
                 initWebsocketListener();
             }
-
+        
             function onCheckBox0Click() {
-                show_pr0 = document.getElementById('check-prio0').checked;
-                clearHtmlTable();
-                buildHtmlTable(messages);
+                updateHtmlTableWithFunc(function(){
+                                show_pr0 = document.getElementById('check-prio0').checked;
+                             });
             }
 
             function onCheckBox1Click() {
-                show_pr1 = document.getElementById('check-prio1').checked;
-                clearHtmlTable();
-                buildHtmlTable(messages);
+                updateHtmlTableWithFunc(function(){
+                                show_pr1 = document.getElementById('check-prio1').checked;
+                             });
             }
 
             function onCheckBox2Click() {
-                show_pr2 = document.getElementById('check-prio2').checked;
-                clearHtmlTable();
-                buildHtmlTable(messages);
+                updateHtmlTableWithFunc(function(){
+                                show_pr2 = document.getElementById('check-prio2').checked;
+                             });
             }
 
             function onCheckBox3Click() {
-                show_pr3 = document.getElementById('check-prio3').checked;
-                show_pr4 = show_pr3;
-                clearHtmlTable();
-                buildHtmlTable(messages);
+                updateHtmlTableWithFunc(function(){
+                                show_pr3 = document.getElementById('check-prio3').checked;
+                                show_pr4 = show_pr3;
+                             });
             }
         
+            function onCheckBoxServiceFire() {
+                updateHtmlTableWithFunc(function(){
+                                show_police = document.getElementById('check-service-fire').checked;
+                             });
+            }
+        
+            function onCheckBoxServicePolice() {
+                updateHtmlTableWithFunc(function(){
+                                show_fire = document.getElementById('check-service-police').checked;
+                             });
+            }
+
+            function onCheckBoxServiceAmbulance() {
+                updateHtmlTableWithFunc(function(){
+                                show_ambulance = document.getElementById('check-service-ambulance').checked;
+                             });
+            }
+
+            function onCheckBoxServiceOther() {
+                updateHtmlTableWithFunc(function(){
+                              show_other = document.getElementById('check-service-other').checked;
+                             });
+            }
+
             function onFilterApply() {
-                var btn = document.getElementById('filter-txt');
-                console.log("Filter:", btn.value);
-                filter = btn.value;
-                clearHtmlTable();
-                buildHtmlTable(messages);
+                updateHtmlTableWithFunc(function(){
+                                 var btn = document.getElementById('filter-txt');
+                                 console.log("Filter:", btn.value);
+                                 filter = btn.value;
+                             });
             }
 
             function onFilterClean() {
-                filter = "";
-                clearHtmlTable();
-                buildHtmlTable(messages);
+                updateHtmlTableWithFunc(function(){
+                                filter = "";
+                             });
             }
 
             function getMessagesAsync() {
@@ -107,12 +133,13 @@
                     }
                     if (found == false) {
                         messages.unshift(data);
-                        if (messages.length > 5000) {
-                            messages = messages.slice(0, 5000);
+                        if (messages.length > max_messages) {
+                            messages = messages.slice(0, max_messages);
                         }
 
-                        var count = addElement(data, 0);
-                        document.getElementById('labelMessagesDisplayed').innerHTML = count.toString();
+                        var table = document.getElementById("dataTable")
+                        addElement(table, data, 0);
+                        document.getElementById('labelMessagesDisplayed').innerHTML = table.rows.length.toString();
                         document.getElementById('labelMessagesCount').innerHTML = messages.length.toString();
                     }
                 }
@@ -132,31 +159,32 @@
                     return "<i class=\"fas fa-taxi\"></i>";
                 if (sender == 3)
                     return "<i class=\"fas fa-ambulance\"></i>";
+                if (sender == 64) // POCSAG Unknown type
+                    return "<i class=\"fas fa-file-word\"></i>";
+                if (sender == 65) // POCSAG Alpha
+                    return "<i class=\"fas fa-file-word\"></i>";
+                if (sender == 66) // POCSAG Numeric
+                    return "<i class=\"fas fa-file-word\"></i>";
+                if (sender == 67) // POCSAG Empty
+                    return "<i class=\"fas fa-volume-up\"></i>";
                 return "<i class=\"fas fa-question\"></i>";
             }
 
-            function addElement(elem, index) {
-                var table = document.getElementById("dataTable")
-
+            function addElement(table, elem, index) {
                 // Priority filter
-                if (elem['priority'] == 0 && show_pr0 == false) {
-                    return table.rows.length;
+                var prio = elem['priority'], sender = elem['sender'];
+                if ((prio == 0 && show_pr0 == false) || (prio == 1 && show_pr1 == false) || (prio == 2 && show_pr2 == false) ||
+                    (prio == 3 && show_pr3 == false) || (prio == 4 && show_pr4 == false)) {
+                    return;
                 }
-                if (elem['priority'] == 1 && show_pr1 == false) {
-                    return table.rows.length;
-                }
-                if (elem['priority'] == 2 && show_pr2 == false) {
-                    return table.rows.length;
-                }
-                if (elem['priority'] == 3 && show_pr3 == false) {
-                    return table.rows.length;
-                }
-                if (elem['priority'] == 4 && show_pr4 == false) {
-                    return table.rows.length;
+                // Sender filter (see constants in p2000.py)
+                if ((sender == 0 && show_other == false) || (sender == 1 && show_fire == false) ||
+                    (sender == 2 && show_police == false) || (sender == 3 && show_ambulance == false)) {
+                    return;
                 }
                 // Text filter
                 if (filter.length > 0 && elem['body'].toLowerCase().includes(filter.toLowerCase()) == false && elem['receivers'].toLowerCase().includes(filter.toLowerCase()) == false) {
-                    return table.rows.length;
+                    return;
                 }
 
                 // Add element
@@ -170,7 +198,11 @@
                 if (elem['priority'] == 3 || elem['priority'] == 4) {
                     body_color = "#AA0000";
                 }
-                var html_body = '<font color="' + body_color + '">' + elem['body'] + '</font>';
+                var body_text = elem['body']
+                if (body_text == '-') {
+                    body_text = "{No text message}"
+                }
+                var html_body = '<font color="' + body_color + '">' + body_text + '</font>';
 
                 var row = table.insertRow(index);
                 if (table.rows.length % 2 == 0)
@@ -178,29 +210,39 @@
                 // Cell body
                 var cellGr = row.insertCell();
                 cellGr.style.color = "#000000";
-                cellGr.innerHTML = iconForSender(elem['sender']) + " " + elem['timestamp'] + "<br/>" + elem['groupid'] + ". " + "To: " + elem['receivers'] + "<br/>" + html_body;
-
-                return table.rows.length;
+                if (sender < 64) {
+                    // P2000 Messages
+                    cellGr.innerHTML = iconForSender(sender) + " " + elem['timestamp'] + "<br/>" + elem['groupid'] + ". " + "To: " + elem['receivers'] + "<br/>" + html_body;
+                } else {
+                    // POCSAG Messages
+                    cellGr.innerHTML = iconForSender(sender) + " " + elem['timestamp'] + "<br/>" + "To: " + elem['receivers'] + "<br/>" + html_body;
+                }
             }
-
+        
             function buildHtmlTable(myList) {
                 var table = document.getElementById("dataTable")
-                for(var i = 0; i < myList.length; i++ ) {
+                for(var i = 0; i < myList.length; i++) {
                     var elem = myList[i];
 
-                    addElement(elem, -1);
+                    addElement(table, elem, -1);
                 }
                 document.getElementById('labelMessagesDisplayed').innerHTML = table.rows.length.toString();
                 document.getElementById('labelMessagesCount').innerHTML = myList.length.toString();
             }
 
+            function updateHtmlTableWithFunc(update_func) {
+                update_func();
+                clearHtmlTable();
+                buildHtmlTable(messages);
+            }
+        
             function clearHtmlTable() {
                 var table = document.getElementById("dataTable")
                 while(table.rows.length > 0) {
                     table.deleteRow(0);
                 }
             }
-
+        
             function reloadHtmlTable() {
                 document.getElementById('labelMessagesCount').innerHTML = "loading..."
                 getMessagesAsync()
@@ -219,18 +261,24 @@
 
     <body bgcolor=white onload="onPageLoaded()">
         <div class="content">
-        <p>P2000 FLEX messages receiver</p>
+        <p>P2000 FLEX/POCSAG messages receiver</p>
         <p><a href="javascript:window.location.reload(false);">Reload</a> <a href="#BTM">To page bottom</a></p>
         <p>Messages loaded: <label id="labelMessagesCount">-</label>, displayed: <label id="labelMessagesDisplayed">-</label></p>
 
         <form class="pure-form">
-            <p>Priority filter:<br/><br/>
+            <p><b>Priority filter:</b><br/><br/>
             <label>Priority-0: <input type="checkbox" id="check-prio0" checked onclick="onCheckBox0Click();" /></label>&nbsp;&nbsp;
             <label style="color: #00AA00">Priority-1: <input type="checkbox" id="check-prio1" checked onclick="onCheckBox1Click();" /></label>&nbsp;&nbsp;
             <label style="color: #0000AA">Priority-2: <input type="checkbox" id="check-prio2" checked onclick="onCheckBox2Click();" /></label>&nbsp;&nbsp;
-            <label style="color: #AA0000">Priority-3: <input type="checkbox" id="check-prio3" checked onclick="onCheckBox3Click();" /></label></p>
+            <label style="color: #AA0000">Priority-3/4: <input type="checkbox" id="check-prio3" checked onclick="onCheckBox3Click();" /></label></p>
             
-            <p>Text filter:<br/>
+            <p><b>Sender filter:</b><br/><br/>
+            <label>Fire: <input type="checkbox" id="check-service-fire" checked onclick="onCheckBoxServiceFire();" /></label>&nbsp;&nbsp;
+            <label>Police: <input type="checkbox" id="check-service-police" checked onclick="onCheckBoxServicePolice();" /></label>&nbsp;&nbsp;
+            <label>Ambulance: <input type="checkbox" id="check-service-ambulance" checked onclick="onCheckBoxServiceAmbulance();" /></label>&nbsp;&nbsp;
+            <label>Other: <input type="checkbox" id="check-service-other" checked onclick="onCheckBoxServiceOther();" /></label></p>
+            
+            <p><b>Text filter:</b><br/>
             <input type="text" id="filter-txt" name="filter"/> <a onclick="onFilterApply()" class="pure-button" href="#">Apply</a> <a onclick="onFilterClean()" class="pure-button" href="#">Reset</a></p>
         </form>
 

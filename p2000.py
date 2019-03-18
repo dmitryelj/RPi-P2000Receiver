@@ -27,7 +27,8 @@ import libTFT
 import utils
 
 # Main parameters
-frequency = "169.65M"
+frequency = "169.65M"  # FLEX
+# frequency = "172.45M"  # POCSAG
 gain = 20           # gain, een getal tussen 0-50
 correction = 0      # specifieke ppm-afwijking van RTL-SDR
 messagesLimit = 5000
@@ -57,6 +58,10 @@ SENDER_BRAND = 1
 SENDER_POLICE = 2
 SENDER_AMBU = 3
 SENDER_TEST = 16
+SENDER_POCSAG = 64
+SENDER_POCSAG_ALPHA = 65
+SENDER_POCSAG_NUMERIC = 66
+SENDER_POCSAG_EMPTY = 67
 
 # Main view and data
 mainView = None
@@ -519,18 +524,23 @@ if __name__ == "__main__":
     parser.add_argument("--capcodes", dest="capcodes", default="")
     args = parser.parse_args()
 
+    # Set current folder
+    abs_path = os.path.abspath(__file__)
+    dir_path = os.path.dirname(abs_path)
+    os.chdir(dir_path)
+
     # Check LCD connection
     if args.lcd == 'False' or args.lcd == 'false' or args.lcd == '0':
         no_lcd = True
     print("LCD in use:", "no" if no_lcd else "yes")
+    print("Frequency:", frequency)
     # Check RTLSDR connection
     rtl_found = checkRTLSDR()
     print("")
 
     # Load capcodes file
     capcodes_path = args.capcodes
-    abs_path = os.path.abspath(__file__)
-    dir_path = os.path.dirname(abs_path)
+
     if capcodes_path == "":
         capcodes_path = dir_path + os.sep + "capcodes.txt"
     capcodesDict = loadCapcodesDict(capcodes_path)
@@ -560,15 +570,15 @@ if __name__ == "__main__":
     def dataThreadFunc():
         global is_active, mainView, frequency, messages, capcodesDict, debug
 
-        cmd = "rtl_fm -f {} -M fm -s 22050 -g {} -p {} | multimon-ng -a FLEX -t raw -".format(frequency, gain, correction)
+        cmd = "rtl_fm -f {} -M fm -s 22050 -g {} -p {} | multimon-ng -a FLEX -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -t raw -".format(frequency, gain, correction)
         abs_path = os.path.abspath(__file__)
         dir_path = os.path.dirname(abs_path)
         if os.name == 'nt':
-            cmd = dir_path + "\\win32\\flex-ng.exe -f {} -g {} -p {}".format(frequency, gain, correction)
-        print("Run process", cmd)
+            cmd = cmd.replace("multimon-ng", "win32\\multimon-ng.exe")
+        # print("Run process:", cmd)
         if debug:
             cmd = dir_path + "/./debugtest"
-            print("Debug process", cmd)
+            # print("Debug process", cmd)
         
         multimon_ng = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
         try:
@@ -646,6 +656,55 @@ if __name__ == "__main__":
                         
                         # Update UI
                         mainView.updateUI()
+                if line.startswith('POCSAG'):
+                    # Message sample:
+                    # POCSAG1200: Address:  104206  Function: 3  Alpha:   CompaxoHybridO|[Onderwerp:]Min. afw. ruimtetemp.-H: Vriescel 2042|[Inhoud:]<EOT><EOT>
+                    # POCSAG1200: Address:    1000  Function: 3
+                    # POCSAG1200: Address:  175557  Function: 0  Numeric: 0715828347
+
+                    print(line.strip())
+                    
+                    receiver, message, type, pr = None, "-", SENDER_POCSAG, PRIORITY2
+                    
+                    addr_index = line.find("Address:")
+                    func_index = line.find("Function:")
+                    alpha_index = line.find("Alpha:")
+                    numeric_index = line.find("Numeric:")
+                    if addr_index != -1 and func_index != -1:
+                        receiver = line[addr_index + 9:func_index].strip()
+                    if alpha_index != -1:
+                        type = SENDER_POCSAG_ALPHA
+                        message = line[alpha_index+6:].strip()
+                    if numeric_index != -1:
+                        type = SENDER_POCSAG_NUMERIC
+                        message = line[numeric_index+9:].strip()
+                    if message == "-":
+                        type = SENDER_POCSAG_EMPTY
+
+                    if receiver is None:
+                        continue
+
+                    # If the message was already received, only add receivers number
+                    if len(messages) > 0 and messages[0].body == message:
+                        messages[0].receivers += (", " + receiver)
+                        messages[0].capcodes.append(receiver)
+                    else:
+                        msg = MessageItem()
+                        msg.groupid = 0
+                        msg.receivers = receiver
+                        msg.capcodes = [receiver]
+                        msg.body = message
+                        msg.sender = type
+                        msg.priority = pr
+                        msg.is_posted = False
+                        messages.insert(0, msg)
+                        
+                    # Limit the list size
+                    if len(messages) > messagesLimit:
+                        messages = messages[:messagesLimit]
+                        
+                    # Update UI
+                    mainView.updateUI()
 
         except KeyboardInterrupt:
             os.kill(multimon_ng.pid, 9)
