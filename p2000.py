@@ -585,12 +585,18 @@ if __name__ == "__main__":
             while True:
                 if is_active is False: break
                 
-                # Parsing based on
-                # https://nl.oneguyoneblog.com/2016/08/09/p2000-ontvangen-decoderen-raspberry-pi/
-                line = multimon_ng.stdout.readline().decode('utf8')
+                # Read line from process
+                line = multimon_ng.stdout.readline()
+                try:
+                    line = line.decode('utf8', 'backslashreplace')
+                except:
+                    line = ""
+                    print("Warning: cannot decode utf8 string")
                 multimon_ng.poll()
                 if line.startswith('FLEX'):
                     if line.__contains__("ALN"):
+                        # Parsing based on
+                        # https://nl.oneguyoneblog.com/2016/08/09/p2000-ontvangen-decoderen-raspberry-pi/
                         # Message sample:
                         # FLEX: 2018-07-29 11:43:27 1600/2/K/A 10.120 [001523172] ALN A1 Boerhaavelaan HAARLM : 16172
                         line_data = line.split(' ')
