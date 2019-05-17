@@ -31,6 +31,7 @@ frequency = "169.65M"  # FLEX
 # frequency = "172.45M"  # POCSAG
 gain = 20           # gain, een getal tussen 0-50
 correction = 0      # specifieke ppm-afwijking van RTL-SDR
+device = 0          # device id
 messagesLimit = 5000
 no_lcd = False
 debug = False
@@ -570,7 +571,7 @@ if __name__ == "__main__":
     def dataThreadFunc():
         global is_active, mainView, frequency, messages, capcodesDict, debug
 
-        cmd = "rtl_fm -f {} -M fm -s 22050 -g {} -p {} | multimon-ng -a FLEX -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -t raw -".format(frequency, gain, correction)
+        cmd = "rtl_fm -d " + device + " -f {} -M fm -s 22050 -g {} -p {} | multimon-ng -a FLEX -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -t raw -".format(frequency, gain, correction)
         abs_path = os.path.abspath(__file__)
         dir_path = os.path.dirname(abs_path)
         if os.name == 'nt':
