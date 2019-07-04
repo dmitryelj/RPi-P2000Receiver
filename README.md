@@ -28,6 +28,12 @@ P2000 rtl-sdr based messages receiver.
 
 # Install (RPi)
 
+0) Before begin:
+
+sudo apt-get install build-essential cmake unzip pkg-config
+
+sudo apt-get install libusb-1.0-0-dev
+
 1) Install RTL-SDR:
 
 git clone git://git.osmocom.org/rtl-sdr.git
