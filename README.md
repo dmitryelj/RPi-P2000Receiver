@@ -34,6 +34,10 @@ sudo apt-get install build-essential cmake unzip pkg-config
 
 sudo apt-get install libusb-1.0-0-dev
 
+sudo pip3 install wheel
+sudo pip3 install setuptools
+sudo pip3 install tzlocal
+
 1) Install RTL-SDR:
 
 git clone git://git.osmocom.org/rtl-sdr.git
