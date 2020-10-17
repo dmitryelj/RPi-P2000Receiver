@@ -67,6 +67,7 @@ SENDER_POCSAG_EMPTY = 67
 mainView = None
 messages = []
 capcodesDict = dict()
+capcodesIgnore = dict()
 filtersList = []
 is_active = False
 
@@ -78,15 +79,16 @@ capcodes_ambu = set()
 
 class MessageItem(object):
     __slots__ = ['timestamp', 'timereceived', 'groupid', 'receivers', 'capcodes', 'body', 'priority', 'sender', 'is_posted']
+
     def __init__(self):
         self.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.timereceived = time.time()
+        self.timereceived = time.monotonic()
         self.groupid = ""
         self.receivers = ""
         self.capcodes = []
         self.body = ""
         self.priority = 0
-        self.sender = 0;
+        self.sender = 0
         self.is_posted = False
     
     def toJSON(self):
@@ -115,6 +117,7 @@ class MessageItem(object):
         return self.is_posted
 
 # UI Main view
+
 class UIMainView(object):
   def __init__(self):
       self.tft = libTFT.lcdInit()
@@ -157,7 +160,6 @@ class UIMainView(object):
       self.tft.controls.append(self.headerRight)
       self.tft.controls.append(libTFT.UILine(0, 26, 320, 26, self.tft.BLACK))
       # Data
-      lines_cnt = 20
       self.dataLabels = []
       for p in range(self.lines_cnt):
           label = libTFT.UILabel("", 4, 30 + 18*p, textColor=self.tft.BLACK, backColor=self.tft.WHITE, fontS = 7)
@@ -251,34 +253,13 @@ class UIMainView(object):
 
 
 # Empty fake view, if UI is disabled
+
 class UIConsoleView(object):
     def __init__(self):
         pass
     
     def updateUI(self):
         pass
-
-        # global messages
-        # print("\x1b[2J")  # Clear console
-        # max_cnt = 10
-        # print("\x1b[0;0H" + '\x1b[1m' + "Last {} messages\n".format(max_cnt) + '\x1b[0m') # Cursor to 0,0
-        # for idx, msg in enumerate(messages):
-        #     # Header and time
-        #     print('\x1b[1;37m' + "{}".format(msg.timestamp) + '\x1b[0m') # Grey
-        #     # Group and receivers
-        #     print("To: {}".format(msg.groupid, msg.receivers))
-        #     # Body
-        #     msg_color = '\x1b[1;30m' # Black
-        #     if msg.priority == PRIORITY1:
-        #         msg_color = '\x1b[1;32m' # Green
-        #     elif msg.priority == PRIORITY2:
-        #         msg_color = '\x1b[1;34m' # Blue
-        #     elif msg.priority == PRIORITY3 or msg.priority == PRIORITY4:
-        #         msg_color = '\x1b[1;31m' # Red
-        #     print(msg_color + msg.body + '\x1b[0m')
-        #     print("")
-        #
-        #     if idx >= max_cnt: break
 
     def mainloop(self):
         while True:
@@ -287,7 +268,8 @@ class UIConsoleView(object):
             except KeyboardInterrupt:
                 break
 
-# HTTP server.
+# HTTP server
+
 class HTTPHandler(BaseHTTPRequestHandler):
   
     def do_ReadFile(self, fileName):
@@ -357,7 +339,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
         return "error: unknown type"
             
     def do_HEAD(self):
-        print("HEAD:", self.path)
+        # print("HEAD:", self.path)
         self.send_response(200)
         if self.path == "/":
             self.send_header("Content-type", "text/html")
@@ -370,7 +352,7 @@ class HTTPHandler(BaseHTTPRequestHandler):
         responceCode = 400
         responceType = "application/json"
         try:
-            print("GET:", self.path)
+            # print("GET:", self.path)
             # Main page: show html
             if self.path == "/":
                 responceCode = 200
@@ -510,8 +492,8 @@ def getSender(capcode, message):
 
 if __name__ == "__main__":
     print("")
-    print("P2000 decoder v0.33 by Dmitrii Eliseev\n")
-    print("Run:\npython3 p2000.py --lcd=true|false [--filter=filter.txt] [--capcodes=capcodes.txt]")
+    print("P2000 decoder v0.4 by Dmitrii Eliseev\n")
+    print("Run:\npython3 p2000.py --lcd=true|false [--filter=filter.txt] [--capcodes=capcodes.txt] [--ignore=capcodes_ignore.txt]")
     print("")
     print("Server running: http://{}:{}".format(utils.getIPAddress(), PORT_NUMBER))
     print("API (GET): http://{}:{}/api/messages".format(utils.getIPAddress(), PORT_NUMBER))
@@ -520,8 +502,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--lcd", dest="lcd", default="false")
-    parser.add_argument("--filter", dest="filter", default="")
-    parser.add_argument("--capcodes", dest="capcodes", default="")
+    parser.add_argument("--filter", dest="filter", default=None)
+    parser.add_argument("--capcodes", dest="capcodes", default=None)
+    parser.add_argument("--ignore", dest="ignore", default=None)
     args = parser.parse_args()
 
     # Set current folder
@@ -534,21 +517,28 @@ if __name__ == "__main__":
         no_lcd = True
     print("LCD in use:", "no" if no_lcd else "yes")
     print("Frequency:", frequency)
+
     # Check RTLSDR connection
     rtl_found = checkRTLSDR()
     print("")
 
     # Load capcodes file
     capcodes_path = args.capcodes
-
-    if capcodes_path == "":
+    if capcodes_path is None:
         capcodes_path = dir_path + os.sep + "capcodes.txt"
     capcodesDict = loadCapcodesDict(capcodes_path)
-    print("Capcodes: {} records loaded".format(len(capcodesDict.keys())))
+    print("Capcodes: {} records loaded".format(len(capcodesDict)))
+
+    # Load capcodes ignore file
+    ignore_path = args.ignore
+    if ignore_path is None:
+        ignore_path = dir_path + os.sep + "capcodes_ignore.txt"
+    capcodesIgnore = loadCapcodesDict(ignore_path)
+    print("Capcodes ignore: {} records loaded".format(len(capcodesIgnore)))
 
     # Load filter file
     filter_path = args.filter
-    if len(filter_path) > 0:
+    if filter_path is not None and len(filter_path) > 0:
         loadFilter(filter_path)
     print("Filter: {} strings loaded".format(len(filtersList)))
     print("")
@@ -568,23 +558,21 @@ if __name__ == "__main__":
 
     # Data receiving thread
     def dataThreadFunc():
-        global is_active, mainView, frequency, messages, capcodesDict, debug
+        global is_active, mainView, frequency, messages, capcodesDict, capcodesIgnore, debug
 
         cmd = "rtl_fm -f {} -M fm -s 22050 -g {} -p {} | multimon-ng -a FLEX -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -t raw -".format(frequency, gain, correction)
         abs_path = os.path.abspath(__file__)
         dir_path = os.path.dirname(abs_path)
         if os.name == 'nt':
             cmd = cmd.replace("multimon-ng", "win32\\multimon-ng.exe")
-        # print("Run process:", cmd)
+        print("Run process:\n", cmd)
         if debug:
             cmd = dir_path + "/./debugtest"
-            # print("Debug process", cmd)
+            print("Debug process", cmd)
         
         multimon_ng = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
         try:
-            while True:
-                if is_active is False: break
-                
+            while is_active:
                 # Read line from process
                 line = multimon_ng.stdout.readline()
                 try:
@@ -598,63 +586,75 @@ if __name__ == "__main__":
                         # Parsing based on
                         # https://nl.oneguyoneblog.com/2016/08/09/p2000-ontvangen-decoderen-raspberry-pi/
                         # Message sample:
-                        # FLEX: 2018-07-29 11:43:27 1600/2/K/A 10.120 [001523172] ALN A1 Boerhaavelaan HAARLM : 16172
-                        line_data = line.split(' ')
-                        flex = line[0:5]
-                        timestamp = line_data[1] + " " + line_data[2]
-                        message = line[line.find("ALN")+4:].strip()
-                        groupid = line_data[4].strip()
-                        capcode = line_data[5].replace('[', '').replace(']', '') # line[43:52].strip()
-                        
-                        # Apply filter
-                        if checkFilter(capcode) is False:
-                            continue
-                        
+                        if "FLEX|" not in line:
+                            # Old multimon-ng version
+                            # FLEX: 2018-07-29 11:43:27 1600/2/K/A 10.120 [001523172] ALN A1 Boerhaavelaan HAARLM : 16172
+                            line_data = line.split(' ') if "FLEX|" not in line else line.split('|')
+                            flex = line[0:5]
+                            timestamp = line_data[1] + " " + line_data[2]
+                            message = line[line.find("ALN")+4:].strip()
+                            groupid = line_data[4].strip()
+                            capcodes = line_data[5].replace('[', '').replace(']', '') # line[43:52].strip()
+                        else:
+                            # New multimon-ng version
+                            # FLEX|2020-10-17 08:18:37|1600/2/K/A|04.093|002029568 000120999 000120342|ALN|A2 13342 Rit 92107 Amsterdam Carolina MacGillavrylaan 1098XB
+                            line_data = line.split('|')
+                            timestamp = line_data[1]
+                            groupid = line_data[3].strip()
+                            capcodes = line_data[4].strip()
+                            message = line_data[6].strip()
+
                         print(line.strip())
 
-                        regex_prio1 = "^A\s?1|\s?A\s?1|PRIO\s?1|^P\s?1"
-                        regex_prio2 = "^A\s?2|\s?A\s?2|PRIO\s?2|^P\s?2"
-                        regex_prio3 = "^B\s?1|^B\s?2|^B\s?3|PRIO\s?3|^P\s?3"
-                        regex_prio4 = "^PRIO\s?4|^P\s?4"
-                        msg_words = message.split(' ')
-                        msg_start = ""
-                        if len(msg_words) > 0:
-                            msg_start += msg_words[0]
-                        if len(msg_words) > 1:
-                            msg_start += ' ' + msg_words[1]
-                        pr = PRIORITY0
-                        if re.search(regex_prio1, msg_start, re.IGNORECASE):
-                            pr = PRIORITY1
-                        elif re.search(regex_prio2, msg_start, re.IGNORECASE):
-                            pr = PRIORITY2
-                        elif re.search(regex_prio3, msg_start, re.IGNORECASE):
-                            pr = PRIORITY3
-                        elif re.search(regex_prio4, msg_start, re.IGNORECASE):
-                            pr = PRIORITY4
+                        # Can be several capcodes in one message
+                        for capcode in capcodes.split(' '):
+                            # Apply filter
+                            if checkFilter(capcode) is False:
+                                continue
+                            if capcode in capcodesIgnore:
+                                print("Message {} to {} ignored".format(message, capcode))
+                                continue
 
-                        # print("MSG", groupid, capcode, message)
-                        # print("DATA", line_data)
+                            regex_prio1 = "^A\s?1|\s?A\s?1|PRIO\s?1|^P\s?1"
+                            regex_prio2 = "^A\s?2|\s?A\s?2|PRIO\s?2|^P\s?2"
+                            regex_prio3 = "^B\s?1|^B\s?2|^B\s?3|PRIO\s?3|^P\s?3"
+                            regex_prio4 = "^PRIO\s?4|^P\s?4"
+                            msg_words = message.split(' ')
+                            msg_start = ""
+                            if len(msg_words) > 0:
+                                msg_start += msg_words[0]
+                            if len(msg_words) > 1:
+                                msg_start += ' ' + msg_words[1]
+                            pr = PRIORITY0
+                            if re.search(regex_prio1, msg_start, re.IGNORECASE):
+                                pr = PRIORITY1
+                            elif re.search(regex_prio2, msg_start, re.IGNORECASE):
+                                pr = PRIORITY2
+                            elif re.search(regex_prio3, msg_start, re.IGNORECASE):
+                                pr = PRIORITY3
+                            elif re.search(regex_prio4, msg_start, re.IGNORECASE):
+                                pr = PRIORITY4
 
-                        # Get name from capcode, if exist
-                        receiver_name = "{} ({})".format(capcodesDict[capcode], capcode) if capcode in capcodesDict else capcode
-                        
-                        # If the message was already received, only add receivers capcode
-                        if len(messages) > 0 and messages[0].body == message:
-                            messages[0].receivers += (", " + receiver_name)
-                            messages[0].capcodes.append(capcode)
-                            if messages[0].sender == SENDER_UNKNOWN:
-                                messages[0].sender = getSender(capcode, message)
-                        else:
-                            msg = MessageItem()
-                            msg.groupid = groupid
-                            msg.receivers = receiver_name
-                            msg.capcodes = [capcode]
-                            msg.body = message
-                            msg.sender = getSender(capcode, message)
-                            msg.priority = pr
-                            msg.timestamp = timestamp
-                            msg.is_posted = False
-                            messages.insert(0, msg)
+                            # Get name from capcode, if exist
+                            receiver_name = "{} ({})".format(capcodesDict[capcode], capcode) if capcode in capcodesDict else capcode
+
+                            # If the message was already received, only add receivers capcode
+                            if len(messages) > 0 and messages[0].body == message:
+                                messages[0].receivers += (", " + receiver_name)
+                                messages[0].capcodes.append(capcode)
+                                if messages[0].sender == SENDER_UNKNOWN:
+                                    messages[0].sender = getSender(capcode, message)
+                            else:
+                                msg = MessageItem()
+                                msg.groupid = groupid
+                                msg.receivers = receiver_name
+                                msg.capcodes = [capcode]
+                                msg.body = message
+                                msg.sender = getSender(capcode, message)
+                                msg.priority = pr
+                                msg.timestamp = timestamp
+                                msg.is_posted = False
+                                messages.insert(0, msg)
             
                         # Limit the list size
                         if len(messages) > messagesLimit:
@@ -762,7 +762,7 @@ if __name__ == "__main__":
                 break
 
             try:
-                now = time.time()
+                now = time.monotonic()
                 for msg in messages:
                     if msg.isPosted() is False and now - msg.timereceived >= post_delay_s:
                         msg.postToServer()

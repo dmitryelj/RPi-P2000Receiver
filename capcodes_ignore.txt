@@ -1,0 +1,2 @@
+# This capcodes will be excluded from the messages list
+123456789,TEST GROUP
