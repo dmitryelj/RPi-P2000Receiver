@@ -78,10 +78,11 @@ capcodes_ambu = set()
 
 
 class MessageItem(object):
-    __slots__ = ['timestamp', 'timereceived', 'groupid', 'receivers', 'capcodes', 'body', 'priority', 'sender', 'is_posted']
+    __slots__ = ['message_raw', 'timestamp', 'timereceived', 'groupid', 'receivers', 'capcodes', 'body', 'priority', 'sender', 'is_posted']
 
     def __init__(self):
         self.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.message_raw = ""
         self.timereceived = time.monotonic()
         self.groupid = ""
         self.receivers = ""
@@ -100,6 +101,7 @@ class MessageItem(object):
                 "body": self.body,
                 "priority": self.priority,
                 "sender": self.sender,
+                "message_raw": self.message_raw,
                 "is_posted": self.is_posted}
         return json.dumps(data, default=lambda o: o.__dict__, sort_keys=True, indent=4)
 
@@ -650,6 +652,7 @@ if __name__ == "__main__":
                                 msg.receivers = receiver_name
                                 msg.capcodes = [capcode]
                                 msg.body = message
+                                msg.message_raw = line.strip()
                                 msg.sender = getSender(capcode, message)
                                 msg.priority = pr
                                 msg.timestamp = timestamp
@@ -700,6 +703,7 @@ if __name__ == "__main__":
                         msg.receivers = receiver
                         msg.capcodes = [receiver]
                         msg.body = message
+                        msg.message_raw = line.strip()
                         msg.sender = type
                         msg.priority = pr
                         msg.is_posted = False
