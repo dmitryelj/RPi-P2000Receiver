@@ -31,7 +31,7 @@ frequency = "169.65M"  # FLEX
 # frequency = "172.45M"  # POCSAG
 gain = 20           # gain, een getal tussen 0-50
 correction = 0      # specifieke ppm-afwijking van RTL-SDR
-device = 0          # device id
+device = 0          # device id, can be used if >1 receivers connected
 messagesLimit = 5000
 no_lcd = False
 debug = False
@@ -496,7 +496,7 @@ def getSender(capcode, message):
 if __name__ == "__main__":
     print("")
     print("P2000 decoder v0.4 by Dmitrii Eliseev\n")
-    print("Run:\npython3 p2000.py --lcd=true|false [--filter=filter.txt] [--capcodes=capcodes.txt] [--ignore=capcodes_ignore.txt]")
+    print("Run:\npython3 p2000.py --lcd=true|false [--filter=filter.txt] [--capcodes=capcodes.txt] [--ignore=capcodes_ignore.txt] [--device=0]")
     print("")
     print("Server running: http://{}:{}".format(utils.getIPAddress(), PORT_NUMBER))
     print("API (GET): http://{}:{}/api/messages".format(utils.getIPAddress(), PORT_NUMBER))
@@ -508,6 +508,7 @@ if __name__ == "__main__":
     parser.add_argument("--filter", dest="filter", default=None)
     parser.add_argument("--capcodes", dest="capcodes", default=None)
     parser.add_argument("--ignore", dest="ignore", default=None)
+    parser.add_argument("--device", dest="device", default=0)
     args = parser.parse_args()
 
     # Set current folder
@@ -520,6 +521,9 @@ if __name__ == "__main__":
         no_lcd = True
     print("LCD in use:", "no" if no_lcd else "yes")
     print("Frequency:", frequency)
+
+    # Device ID
+    device = args.device
 
     # Check RTLSDR connection
     rtl_found = checkRTLSDR()
@@ -561,9 +565,9 @@ if __name__ == "__main__":
 
     # Data receiving thread
     def dataThreadFunc():
-        global is_active, mainView, frequency, messages, capcodesDict, capcodesIgnore, debug
+        global is_active, mainView, device, frequency, messages, capcodesDict, capcodesIgnore, debug
 
-        cmd = "rtl_fm -d " + device + " -f {} -M fm -s 22050 -g {} -p {} | multimon-ng -a FLEX -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -t raw -".format(frequency, gain, correction)
+        cmd = "rtl_fm -d {} -f {} -M fm -s 22050 -g {} -p {} | multimon-ng -a FLEX -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -t raw -".format(device, frequency, gain, correction)
         abs_path = os.path.abspath(__file__)
         dir_path = os.path.dirname(abs_path)
         if os.name == 'nt':
