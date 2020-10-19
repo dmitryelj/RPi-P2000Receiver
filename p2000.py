@@ -584,17 +584,18 @@ if __name__ == "__main__":
                     print("Warning: cannot decode utf8 string")
                 multimon_ng.poll()
                 if line.startswith('FLEX'):
-                    if line.__contains__("ALN"):
+                    if line.__contains__("ALN") or line.__contains__("NUM"):
                         # Parsing based on
                         # https://nl.oneguyoneblog.com/2016/08/09/p2000-ontvangen-decoderen-raspberry-pi/
                         # Message sample:
                         if "FLEX|" not in line:
                             # Old multimon-ng version
                             # FLEX: 2018-07-29 11:43:27 1600/2/K/A 10.120 [001523172] ALN A1 Boerhaavelaan HAARLM : 16172
+                            # FLEX: 2020-10-17 18:40:19 1600/2/A 10.020 [001530615] NUM 3301
                             line_data = line.split(' ') if "FLEX|" not in line else line.split('|')
                             flex = line[0:5]
                             timestamp = line_data[1] + " " + line_data[2]
-                            message = line[line.find("ALN")+4:].strip()
+                            message = line[line.find("ALN")+4:].strip() if "ALN" in line else line[line.find("NUM")+4:].strip()
                             groupid = line_data[4].strip()
                             capcodes = line_data[5].replace('[', '').replace(']', '') # line[43:52].strip()
                         else:
